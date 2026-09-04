@@ -1,0 +1,70 @@
+### List clients (seeded: Ana, Marko, Elena)
+GET http://127.0.0.1:8000/api/clients
+
+### Create a client
+POST http://127.0.0.1:8000/api/clients
+Content-Type: application/json
+
+{
+  "name": "Petar"
+}
+
+### Ana's balance (expect 860.00 from seeded data)
+GET http://127.0.0.1:8000/api/clients/1/balance
+
+### Ana's holdings (expect AAPL: 2)
+GET http://127.0.0.1:8000/api/clients/1/holdings
+
+### Ana's transaction history
+GET http://127.0.0.1:8000/api/clients/1/transactions
+
+### Deposit cash
+POST http://127.0.0.1:8000/api/clients/1/transactions
+Content-Type: application/json
+
+{
+  "type": "deposit",
+  "amount": 200
+}
+
+### Buy an instrument
+POST http://127.0.0.1:8000/api/clients/1/transactions
+Content-Type: application/json
+
+{
+  "type": "buy",
+  "instrument": "MSFT",
+  "quantity": 2,
+  "price_per_unit": 50
+}
+
+### Sell an instrument (price can differ from purchase price)
+POST http://127.0.0.1:8000/api/clients/1/transactions
+Content-Type: application/json
+
+{
+  "type": "sell",
+  "instrument": "AAPL",
+  "quantity": 1,
+  "price_per_unit": 130
+}
+
+### Rejected: withdrawal beyond balance -> expect 422
+POST http://127.0.0.1:8000/api/clients/1/transactions
+Content-Type: application/json
+
+{
+  "type": "withdrawal",
+  "amount": 999999
+}
+
+### Rejected: sell more than owned -> expect 422
+POST http://127.0.0.1:8000/api/clients/1/transactions
+Content-Type: application/json
+
+{
+  "type": "sell",
+  "instrument": "AAPL",
+  "quantity": 999,
+  "price_per_unit": 100
+}
