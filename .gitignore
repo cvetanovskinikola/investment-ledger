@@ -27,3 +27,6 @@ Homestead.yaml
 Thumbs.db
 
 /database/database.sqlite
+
+# No frontend build is used in this project (backend API only).
+/package-lock.json
