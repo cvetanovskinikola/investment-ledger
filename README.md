@@ -1,58 +1,166 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Investment Ledger
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Laravel бекенд кој ја памти историјата на движења (депозити, подигања, купувања,
+продавања) на клиентски сметки, и од таа историја во секој момент пресметува
+колку готовина има клиентот и што поседува.
 
-## About Laravel
+## Барања
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.3+ (со стандардните extensions за Laravel: `mbstring`, `openssl`,
+  `pdo_sqlite`, `bcmath`, `fileinfo`, `ctype`, `tokenizer`, `xml`)
+- Composer 2
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Подигање на проектот
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer install
+cp .env.example .env
+php artisan key:generate
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Проектот по default користи SQLite (`DB_CONNECTION=sqlite` во `.env`), затоа
+треба да постои празна база:
 
-## Contributing
+```bash
+# Linux / macOS
+touch database/database.sqlite
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+# Windows (PowerShell)
+New-Item -ItemType File database/database.sqlite
+```
 
-## Code of Conduct
+Потоа, migrate + seed (ова креира 3 примерни клиенти со веќе внесени движења):
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+php artisan migrate --seed
+```
 
-## Security Vulnerabilities
+Стартување:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+php artisan serve
+```
 
-## License
+Апликацијата слуша на `http://127.0.0.1:8000`.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Тестови:
+
+```bash
+php artisan test
+```
+
+## Комуникација со системот
+
+Комуникацијата е преку REST API кое враќа JSON (`routes/api.php`, префикс `/api`).
+
+### Креирање клиент
+
+`POST /api/clients`
+
+Праќа:
+```json
+{ "name": "Ана" }
+```
+
+Враќа `201`:
+```json
+{ "data": { "id": 1, "name": "Ана", "created_at": "2026-09-04T12:00:00.000000Z" } }
+```
+
+### Листа на клиенти
+
+`GET /api/clients` → `200` со листа од клиенти во истиот формат.
+
+### Ново движење на сметка
+
+`POST /api/clients/{id}/transactions`
+
+За депозит или подигање:
+```json
+{ "type": "deposit", "amount": 1000 }
+```
+
+За купување или продавање (цената по парче ја внесува тој што го запишува
+движењето, вкупниот износ се пресметува автоматски):
+```json
+{ "type": "buy", "instrument": "AAPL", "quantity": 5, "price_per_unit": 100 }
+```
+
+Успешно движење враќа `201`:
+```json
+{
+    "data": {
+        "id": 12,
+        "client_id": 1,
+        "type": "buy",
+        "amount": "500.00",
+        "instrument": "AAPL",
+        "quantity": 5,
+        "price_per_unit": "100.0000",
+        "created_at": "2026-09-04T12:00:00.000000Z"
+    }
+}
+```
+
+Ако движењето ги крши правилата (пример: подигање/купување над расположливата
+готовина, или продавање повеќе парчиња отколку што клиентот поседува), враќа
+`422` и состојбата на клиентот останува непроменета:
+```json
+{ "message": "Client 'Ана' has insufficient cash to withdraw 99999." }
+```
+
+Погрешно обликувани податоци (на пример негативен износ, количина што не е
+цел број, или непостоечки тип на движење) исто така враќаат `422`, со
+стандардна Laravel структура за validation грешки (`{ "message": ..., "errors": {...} }`).
+
+### Историја на движења
+
+`GET /api/clients/{id}/transactions` → `200` со сите движења на клиентот,
+најново прво.
+
+### Готовина и портфолио
+
+`GET /api/clients/{id}/balance`
+```json
+{ "client_id": 1, "cash_balance": "860.00" }
+```
+
+`GET /api/clients/{id}/holdings`
+```json
+{ "client_id": 1, "holdings": { "AAPL": 2 } }
+```
+
+## Зошто вака
+
+Движењата ги чувам во една единствена, append-only табела (`transactions`) со
+поле `type`, наместо посебна табела за секаков вид движење. Ова директно го
+отсликува барањето дека историјата само расте и никогаш не се менува, и
+овозможува лесно да се пресметаат готовина и holdings со едноставно
+собирање/одземање низ истата листа.
+
+Готовината и holdings не ги чувам како засебни колони што се ажурираат при
+секое движење, туку секогаш се пресметуваат од целата историја во моментот
+кога некој ги бара (`PortfolioService::cashBalance` / `holdings`). Со тоа
+нема ризик балансот да "отстапи" од вистинската историја - историјата е
+единствениот извор на вистина.
+
+За пари користам `bcmath` (децимални стрингови) наместо `float`, за да
+избегнам заокружувачки грешки типични за парично пресметување со binary
+floating point.
+
+Секое запишување движење е обвиткано во DB transaction со `lockForUpdate` на
+клиентот, за да две паралелни барања за истиот клиент не можат истовремено да
+"проверат" стар баланс и двете да поминат кога само едната смее.
+
+Правилата (недоволно пари / недоволно акции) намерно не се обична validation
+рула, туку домашни exceptions (`InsufficientFundsException`,
+`InsufficientHoldingsException`) фрлени од сервисниот слој, бидејќи зависат од
+тековната состојба на клиентот, а не само од обликот на инпутот. FormRequest
+класите (`StoreTransactionRequest`) проверуваат само дека инпутот е сам по
+себе смислен (позитивен износ, цел број парчиња, точен тип), а
+`PortfolioService` е единственото место каде се проверуваат деловните
+правила - нема дуплирана логика помеѓу контролер и сервис.
+
+Инструментот (`instrument`) е обична строка (се зачувува во uppercase заради
+конзистентност), без посебна табела за инструменти - точно како што бараше
+приказната, тикерот е само етикета.
